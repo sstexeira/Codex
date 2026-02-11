@@ -1,0 +1,21 @@
+{
+  "name": "audio-transcriber-electron",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.cjs",
+  "scripts": {
+    "electron:dev": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^40.2.1"
+  },
+  "dependencies": {
+    "markdown-it": "^14.1.0",
+    "openai": "^6.18.0"
+  }
+}
