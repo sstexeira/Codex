@@ -4,3 +4,6 @@ vite.config.ts.timestamp-*
 dist
 server/dist
 data/*.db
+
+# Local secrets
+audio-transcriber-electron/openai_api_key.txt

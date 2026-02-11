@@ -98,11 +98,30 @@ const toDataUrl = async (filePath) => {
   return `data:${mime};base64,${data.toString("base64")}`;
 };
 
+const isNumericSpeaker = (value) => {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "number") return Number.isFinite(value);
+  if (typeof value !== "string") return false;
+  return /^[0-9]+$/.test(value.trim());
+};
+
 const normalizeSegments = (segments) => {
   const map = new Map();
   let count = 0;
   return segments.map((seg) => {
-    const key = seg.speaker ?? "unknown";
+    const rawSpeaker = seg.speaker;
+    if (
+      typeof rawSpeaker === "string" &&
+      rawSpeaker.trim().length > 0 &&
+      !isNumericSpeaker(rawSpeaker)
+    ) {
+      return {
+        speaker: rawSpeaker.trim(),
+        text: seg.text || "",
+      };
+    }
+
+    const key = rawSpeaker ?? "unknown";
     if (!map.has(key)) {
       count += 1;
       map.set(key, `Speaker ${count}`);
@@ -122,7 +141,8 @@ const buildPrompt = (segments, headerLine) => {
     "- Keep the speaker meaning verbatim, but remove filler words (um, uh, like, you know),",
     "  false starts, repeated words, and long pauses.",
     "- Do not summarize or add new content.",
-    "- Keep speaker labels as 'Speaker 1', 'Speaker 2', etc.",
+    "- Preserve any provided speaker labels; do not rename them.",
+    "- If a label is missing, use 'Speaker 1', 'Speaker 2', etc.",
     "- Produce clean Markdown with:",
     `  - Start output with:\n${header}\n`,
     "  - Each speaker on a new line like a script: 'Speaker 1: ...'",
@@ -244,10 +264,8 @@ const transcribeChunk = async (
       chunking_strategy: "auto",
       ...(knownNames.length
         ? {
-            extra_body: {
-              known_speaker_names: knownNames,
-              known_speaker_references: knownRefs,
-            },
+            known_speaker_names: knownNames,
+            known_speaker_references: knownRefs,
           }
         : {}),
     },

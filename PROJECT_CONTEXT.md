@@ -40,6 +40,8 @@
 - Long audio must be chunked to avoid request timeouts.
 - Chunk outputs include clear separators: `---` + `**Chunk N of M**`.
 - API key is read from `audio-transcriber-electron/openai_api_key.txt` and kept in memory only.
+- Formatting must preserve any speaker labels returned by the diarized API.
+- Speaker reference clips are sent as top-level transcription parameters.
 - Raw outputs saved locally in `~/Documents/AudioTranscriber/`:
   - `.txt` for raw text (with chunk headers)
   - `.json` for diarized segments
@@ -51,8 +53,8 @@
   - Reference clips are generated from the main audio via `ffmpeg`.
   - Raw `.txt` and diarized `.json` outputs saved per transcription.
 - Next:
-  - Validate reference clip usage (ensure speaker labels are preserved in formatting).
   - Optional: chunk size tuning and UX improvements.
+  - Optional: UI surfacing of detected speaker labels for easier validation.
 
 ## How to Run / Build / Test Locally
 - Electron app:
