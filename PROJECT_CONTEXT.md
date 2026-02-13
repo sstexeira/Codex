@@ -3,6 +3,7 @@
 ## Goal / Non-goals
 - Goal: local-first audio transcription tools using OpenAI Audio Transcriptions with diarization, formatted output, and local file outputs.
 - Goal: provide a desktop Electron app ("Process Audio") that supports audio playback, speaker reference clips, transcription, and editable Markdown output.
+- Goal: provide in-app post-processing chat over the saved Markdown transcript.
 - Non-goal: cloud multi-user service or hosted backend.
 - Non-goal: automatic speaker identification without user-provided reference clips.
 
@@ -20,14 +21,22 @@
     - Audio playback and clip creation
     - Speaker reference slots (name + clip)
     - Live preview of formatted Markdown + editing + find/replace
-    - "Create File" action to save Markdown
-  - Preload bridge (`preload.cjs`) exposes IPC for transcribe, clip creation, saving, rendering.
+    - "Save and Continue" action to save Markdown and open Post-Processing tab
+    - Post-Processing chat tab for prompt/response interaction over the saved `.md`
+    - Prompt preset dropdown populated from `audio-transcriber-electron/Prompts.csv` (`title;prompt`)
+  - Preload bridge (`preload.cjs`) exposes IPC for transcribe, clip creation, saving, rendering, and post-processing chat.
+  - Main process also loads prompt presets from `Prompts.csv` and returns parsed entries to renderer.
+  - Post-processing model call:
+    - Main process reads saved `.md`
+    - Sends prompt + saved Markdown content + recent chat history to `gpt-4o-mini`
+    - Returns assistant response to renderer chat UI
   - Data flow:
     1. User selects audio file and optional speaker clips.
     2. App chunks audio if needed.
     3. Each chunk is transcribed with diarization.
     4. Chunk outputs are formatted into Markdown with chunk separators.
     5. Raw text + diarized JSON are saved; user edits Markdown and saves `.md`.
+    6. App switches to Post-Processing tab; user chats with model using the saved `.md` as context.
 
 - **Web app** (root `src/` + `server/`)
   - Vite + React frontend; Express backend.
@@ -42,6 +51,10 @@
 - API key is read from `audio-transcriber-electron/openai_api_key.txt` and kept in memory only.
 - Formatting must preserve any speaker labels returned by the diarized API.
 - Speaker reference clips are sent as top-level transcription parameters.
+- Post-processing queries use the currently saved `.md` file as source context for each prompt.
+- Prompt preset source format is semicolon-separated CSV rows: `Title;Prompt text`.
+- Prompt preset parsing is currently simple line-based parsing with first semicolon split.
+- Current parser does not support quoted CSV escaping for embedded semicolons.
 - Raw outputs saved locally in `~/Documents/AudioTranscriber/`:
   - `.txt` for raw text (with chunk headers)
   - `.json` for diarized segments
@@ -52,7 +65,10 @@
   - Electron app with playback, clip creation, diarized transcription, chunking, formatting, and editable Markdown.
   - Reference clips are generated from the main audio via `ffmpeg`.
   - Raw `.txt` and diarized `.json` outputs saved per transcription.
-  - Optional sections (Known Speakers, Edit Transcript) are collapsible; Create File is always visible.
+  - Optional sections (Known Speakers, Edit Transcript) are collapsible.
+  - Save and Continue opens a Post-Processing chat tab for AI Q&A over saved transcript Markdown.
+  - Post-Processing prompt presets are loaded from `audio-transcriber-electron/Prompts.csv`.
+  - Selecting a preset clears prompt input first, then pre-fills with selected prompt text.
 - Next:
   - Optional: chunk size tuning and UX improvements.
   - Optional: UI surfacing of detected speaker labels for easier validation.
@@ -81,3 +97,5 @@
 - Both the web app and Electron app are intended to coexist in this repo.
 - The Electron app is the primary active focus.
 - Users run on macOS and can install `ffmpeg`.
+- Prompt presets are edited directly in `audio-transcriber-electron/Prompts.csv`.
+- `Prompts.csv` uses one prompt per line in `Title;Prompt` form, without header rows.

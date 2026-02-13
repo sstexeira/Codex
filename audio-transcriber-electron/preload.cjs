@@ -17,6 +17,13 @@ contextBridge.exposeInMainWorld("appBridge", {
   clearClip: (clipPath) => ipcRenderer.invoke("clear-clip", { clipPath }),
   openOutputFolder: (markdownPath) =>
     ipcRenderer.invoke("open-output-folder", { markdownPath }),
+  postProcessMarkdown: (markdownPath, prompt, history) =>
+    ipcRenderer.invoke("post-process-markdown", {
+      markdownPath,
+      prompt,
+      history,
+    }),
+  loadPromptPresets: () => ipcRenderer.invoke("load-prompt-presets"),
   getPathForFile: (file) => webUtils.getPathForFile(file),
   onStatus: (handler) => {
     ipcRenderer.on("status-update", (_event, message) => {

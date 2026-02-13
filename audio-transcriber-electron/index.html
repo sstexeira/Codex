@@ -26,6 +26,35 @@
         font-size: 24px;
       }
 
+      .tab-nav {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+
+      .tab-btn {
+        background: #e9e9e9;
+        color: #333;
+      }
+
+      .tab-btn.active {
+        background: #1f7aec;
+        color: white;
+      }
+
+      .tab-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .tab-panel {
+        display: none;
+      }
+
+      .tab-panel.active {
+        display: block;
+      }
+
       .card {
         background: white;
         border-radius: 12px;
@@ -236,12 +265,83 @@
       details[open] .details-summary::before {
         transform: rotate(90deg);
       }
+
+      .chat-shell {
+        display: grid;
+        gap: 12px;
+      }
+
+      .chat-messages {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+        border: 1px solid #ebebeb;
+        min-height: 280px;
+        max-height: 420px;
+        overflow-y: auto;
+        padding: 12px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .chat-message {
+        max-width: 90%;
+        border-radius: 12px;
+        padding: 10px 12px;
+        white-space: pre-wrap;
+        line-height: 1.45;
+      }
+
+      .chat-message.user {
+        justify-self: end;
+        background: #1f7aec;
+        color: white;
+      }
+
+      .chat-message.assistant {
+        justify-self: start;
+        background: #f1f4f8;
+        color: #111;
+      }
+
+      .chat-composer {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        align-items: end;
+      }
+
+      .prompt-preset {
+        display: grid;
+        gap: 6px;
+      }
+
+      #promptPreset {
+        width: 320px;
+        max-width: 100%;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid #d6d6d6;
+        font-size: 14px;
+      }
+
+      #postPrompt {
+        min-height: 96px;
+      }
     </style>
   </head>
   <body>
     <h1>Process Audio</h1>
 
-    <div class="card">
+    <div class="tab-nav">
+      <button class="tab-btn active" id="transcriptionTabBtn">Transcription</button>
+      <button class="tab-btn" id="postProcessingTabBtn" disabled>
+        Post-Processing
+      </button>
+    </div>
+
+    <div class="tab-panel active" id="transcriptionPanel">
+      <div class="card">
       <div class="row">
         <div class="dropzone" id="dropzone">
           Drag & drop an audio file here
@@ -291,9 +391,9 @@
       <div class="progress" id="progress">
         <div class="bar"></div>
       </div>
-    </div>
+      </div>
 
-    <div class="card">
+      <div class="card">
       <details id="knownSpeakers">
         <summary class="details-summary">Identify Known Speakers (optional)</summary>
         <div class="note">
@@ -326,11 +426,11 @@
           <button class="clear-btn secondary" data-slot="4">Clear</button>
         </div>
       </details>
-    </div>
+      </div>
 
-    <div id="output">Transcription output will appear here.</div>
+      <div id="output">Transcription output will appear here.</div>
 
-    <div class="card">
+      <div class="card">
       <details id="editTranscript">
         <summary class="details-summary">Edit Transcript</summary>
         <textarea id="editor" placeholder="Transcribed audio may be edited directly here..."></textarea>
@@ -341,12 +441,30 @@
           <button id="replaceBtn" class="secondary">Replace All</button>
         </div>
       </details>
+      </div>
+
+      <div class="card">
+      <div class="row">
+        <button id="saveContinueBtn">Save and Continue</button>
+        <div class="note">Saves a .md file and opens Post-Processing.</div>
+      </div>
+      </div>
     </div>
 
-    <div class="card">
-      <div class="row">
-        <button id="createFileBtn">Create File</button>
-        <div class="note">Creates a .md file with your edits.</div>
+    <div class="tab-panel" id="postProcessingPanel">
+      <div class="card chat-shell">
+        <h2 style="margin: 0">Post-Processing</h2>
+        <div class="note" id="savedFileLabel">Save a transcript first to enable this tab.</div>
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="prompt-preset">
+          <label for="promptPreset">Select a prompt:</label>
+          <select id="promptPreset"></select>
+        </div>
+        <div class="chat-composer">
+          <textarea id="postPrompt" placeholder="Ask about the saved transcript markdown, e.g. 'Summarize this conversation'"></textarea>
+          <button id="sendPostBtn">Send</button>
+        </div>
+        <div class="status" id="postStatus"></div>
       </div>
     </div>
 
@@ -369,7 +487,17 @@
       const findText = document.getElementById("findText");
       const replaceText = document.getElementById("replaceText");
       const replaceBtn = document.getElementById("replaceBtn");
-      const createFileBtn = document.getElementById("createFileBtn");
+      const saveContinueBtn = document.getElementById("saveContinueBtn");
+      const transcriptionTabBtn = document.getElementById("transcriptionTabBtn");
+      const postProcessingTabBtn = document.getElementById("postProcessingTabBtn");
+      const transcriptionPanel = document.getElementById("transcriptionPanel");
+      const postProcessingPanel = document.getElementById("postProcessingPanel");
+      const savedFileLabel = document.getElementById("savedFileLabel");
+      const chatMessages = document.getElementById("chatMessages");
+      const promptPreset = document.getElementById("promptPreset");
+      const postPrompt = document.getElementById("postPrompt");
+      const sendPostBtn = document.getElementById("sendPostBtn");
+      const postStatusEl = document.getElementById("postStatus");
       const speakerNames = Array.from(document.querySelectorAll(".speaker-name"));
       const speakerAudios = Array.from(
         document.querySelectorAll(".speaker-audio")
@@ -382,6 +510,73 @@
       let originalPathBase = null;
       let sourceAudioUrl = null;
       const speakerClipPaths = [null, null, null, null];
+      const postHistory = [];
+      let postRequestInFlight = false;
+
+      const setActiveTab = (tab) => {
+        const showPost = tab === "post";
+        transcriptionTabBtn.classList.toggle("active", !showPost);
+        postProcessingTabBtn.classList.toggle("active", showPost);
+        transcriptionPanel.classList.toggle("active", !showPost);
+        postProcessingPanel.classList.toggle("active", showPost);
+      };
+
+      const setPostStatus = (text, isError = false) => {
+        postStatusEl.textContent = text;
+        postStatusEl.style.color = isError ? "#b00020" : "#333";
+      };
+
+      const appendChatMessage = (role, text) => {
+        const bubble = document.createElement("div");
+        bubble.className = `chat-message ${role}`;
+        bubble.textContent = text;
+        chatMessages.appendChild(bubble);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      };
+
+      const resetPostPanel = () => {
+        postHistory.length = 0;
+        chatMessages.textContent = "";
+        promptPreset.selectedIndex = 0;
+        postPrompt.value = "";
+        setPostStatus("");
+        savedFileLabel.textContent = "Save a transcript first to enable this tab.";
+        postProcessingTabBtn.disabled = true;
+      };
+
+      const loadPromptPresets = async () => {
+        const result = await window.appBridge.loadPromptPresets();
+        const prompts =
+          result.ok && Array.isArray(result.prompts) && result.prompts.length
+            ? result.prompts
+            : [{ title: "None", prompt: "" }];
+
+        promptPreset.innerHTML = "";
+        prompts.forEach((item, index) => {
+          const option = document.createElement("option");
+          option.value = item.prompt || "";
+          option.textContent = item.title || `Prompt ${index + 1}`;
+          if (index === 0) option.selected = true;
+          promptPreset.appendChild(option);
+        });
+
+        if (!result.ok) {
+          setPostStatus(
+            `Prompt preset load failed (${result.error || "unknown error"}).`,
+            true
+          );
+        }
+      };
+
+      transcriptionTabBtn.addEventListener("click", () => setActiveTab("transcription"));
+      postProcessingTabBtn.addEventListener("click", () => {
+        if (postProcessingTabBtn.disabled) return;
+        setActiveTab("post");
+      });
+
+      loadPromptPresets().then(() => {
+        resetPostPanel();
+      });
 
       const setStatus = (text, isError = false) => {
         statusEl.textContent = text;
@@ -499,6 +694,8 @@
         editor.value = "";
         openFolderBtn.disabled = true;
         lastMarkdownPath = null;
+        resetPostPanel();
+        setActiveTab("transcription");
 
         if (!selectedFilePath) {
           setStatus("Please select an audio file.", true);
@@ -602,7 +799,7 @@
         updatePreview(editor.value);
       });
 
-      createFileBtn.addEventListener("click", async () => {
+      saveContinueBtn.addEventListener("click", async () => {
         const markdown = editor.value;
         const result = await window.appBridge.saveMarkdown(
           markdown,
@@ -616,7 +813,71 @@
 
         lastMarkdownPath = result.markdownPath;
         openFolderBtn.disabled = false;
-        setStatus("Markdown saved.");
+        postProcessingTabBtn.disabled = false;
+        savedFileLabel.textContent = `Saved file: ${lastMarkdownPath}`;
+        setStatus("Markdown saved. Opening Post-Processing tab.");
+        if (!chatMessages.childElementCount) {
+          appendChatMessage(
+            "assistant",
+            "Transcript saved. Ask a question about the markdown file."
+          );
+        }
+        setActiveTab("post");
+      });
+
+      sendPostBtn.addEventListener("click", async () => {
+        if (postRequestInFlight) return;
+        if (!lastMarkdownPath) {
+          setPostStatus("Save a markdown file before post-processing.", true);
+          return;
+        }
+
+        const prompt = postPrompt.value.trim();
+        if (!prompt) {
+          setPostStatus("Enter a prompt first.", true);
+          return;
+        }
+
+        appendChatMessage("user", prompt);
+        postPrompt.value = "";
+        setPostStatus("Thinking...");
+        postRequestInFlight = true;
+        sendPostBtn.disabled = true;
+
+        const result = await window.appBridge.postProcessMarkdown(
+          lastMarkdownPath,
+          prompt,
+          postHistory
+        );
+
+        postRequestInFlight = false;
+        sendPostBtn.disabled = false;
+
+        if (!result.ok) {
+          setPostStatus(result.error || "Post-processing failed.", true);
+          return;
+        }
+
+        const responseText = result.response || "";
+        appendChatMessage("assistant", responseText);
+        postHistory.push({ role: "user", content: prompt });
+        postHistory.push({ role: "assistant", content: responseText });
+        setPostStatus("");
+      });
+
+      postPrompt.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          sendPostBtn.click();
+        }
+      });
+
+      promptPreset.addEventListener("change", () => {
+        postPrompt.value = "";
+        const selectedPrompt = promptPreset.value || "";
+        if (!selectedPrompt) return;
+        postPrompt.value = selectedPrompt;
+        postPrompt.focus();
       });
 
       openFolderBtn.addEventListener("click", async () => {

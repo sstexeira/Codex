@@ -20,3 +20,18 @@
 
 - 2026-02-11 18:35: App UI title changed to "Process Audio".  
   Rationale: Align product naming in window title and UI header.
+
+- 2026-02-13: Replaced "Create File" with "Save and Continue" and added an in-app "Post-Processing" chat tab.  
+  Rationale: Keep users in one workflow: save transcript, then immediately query the saved `.md` with AI.
+
+- 2026-02-13: Post-processing requests send prompt + saved markdown file content + recent chat history to `gpt-4o-mini`.  
+  Rationale: Ensure model responses stay grounded in the persisted transcript while supporting follow-up questions.
+
+- 2026-02-13: Prompt preset dropdown is loaded from `audio-transcriber-electron/Prompts.csv` using `Title;Prompt` rows.  
+  Rationale: Allow non-code prompt management and consistent preset behavior in Post-Processing UI.
+
+- 2026-02-13: Changing prompt preset clears the prompt input before applying selected prompt text.  
+  Rationale: Prevent accidental mixed prompts when switching presets.
+
+- 2026-02-13: Prompt preset file parsing uses a simple first-semicolon split per line (`Title;Prompt`) with no quoted-field support.  
+  Rationale: Keep preset editing lightweight and implementation minimal for current workflow needs.

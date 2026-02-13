@@ -7,6 +7,7 @@ const MarkdownIt = require("markdown-it");
 
 const MAX_BYTES = 25 * 1024 * 1024;
 const API_KEY_PATH = path.join(__dirname, "openai_api_key.txt");
+const PROMPTS_CSV_PATH = path.join(__dirname, "Prompts.csv");
 const CLIP_DIR = path.join(app.getPath("temp"), "AudioTranscriberClips");
 const CHUNK_DIR = path.join(app.getPath("temp"), "AudioTranscriberChunks");
 const CHUNK_SECONDS = 300;
@@ -232,6 +233,35 @@ const readApiKey = async () => {
   return key;
 };
 
+const createOpenAiClient = async () => {
+  const { default: OpenAI } = await import("openai");
+  const key = await readApiKey();
+  return new OpenAI({
+    apiKey: key,
+    timeout: 15 * 60 * 1000,
+    maxRetries: 0,
+  });
+};
+
+const parsePromptsCsv = (content) =>
+  content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"))
+    .map((line) => {
+      const sepIndex = line.indexOf(";");
+      if (sepIndex === -1) {
+        return {
+          title: line,
+          prompt: line,
+        };
+      }
+      const title = line.slice(0, sepIndex).trim();
+      const prompt = line.slice(sepIndex + 1).trim();
+      return { title, prompt };
+    })
+    .filter((item) => item.title.length > 0);
+
 const sendStatus = (message) => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send("status-update", message);
@@ -332,13 +362,7 @@ ipcMain.handle("transcribe", async (_event, { filePath, speakerRefs }) => {
       };
     }
 
-    const { default: OpenAI } = await import("openai");
-    const key = await readApiKey();
-    const client = new OpenAI({
-      apiKey: key,
-      timeout: 15 * 60 * 1000,
-      maxRetries: 0,
-    });
+    const client = await createOpenAiClient();
     console.log(`[transcribe] client timeout ms = ${client.timeout}`);
 
     const knownNames = [];
@@ -557,3 +581,89 @@ ipcMain.handle("open-output-folder", async (_event, { markdownPath }) => {
   shell.showItemInFolder(markdownPath);
   return { ok: true };
 });
+
+ipcMain.handle("load-prompt-presets", async () => {
+  try {
+    const csvContent = await fsp.readFile(PROMPTS_CSV_PATH, "utf8");
+    const prompts = parsePromptsCsv(csvContent);
+    return { ok: true, prompts };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err?.message || "Failed to load prompt presets.",
+      prompts: [],
+    };
+  }
+});
+
+ipcMain.handle(
+  "post-process-markdown",
+  async (_event, { markdownPath, prompt, history }) => {
+    try {
+      if (!markdownPath) {
+        return { ok: false, error: "Save a markdown file before post-processing." };
+      }
+      const userPrompt = typeof prompt === "string" ? prompt.trim() : "";
+      if (!userPrompt) {
+        return { ok: false, error: "Enter a prompt." };
+      }
+
+      const markdown = await fsp.readFile(markdownPath, "utf8");
+      if (!markdown.trim()) {
+        return { ok: false, error: "Saved markdown file is empty." };
+      }
+
+      const priorMessages = Array.isArray(history)
+        ? history
+            .filter(
+              (msg) =>
+                msg &&
+                (msg.role === "user" || msg.role === "assistant") &&
+                typeof msg.content === "string" &&
+                msg.content.trim().length > 0
+            )
+            .slice(-12)
+            .map((msg) => ({ role: msg.role, content: msg.content }))
+        : [];
+
+      const client = await createOpenAiClient();
+      const completion = await client.chat.completions.create(
+        {
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are a post-processing assistant for transcript markdown files. Answer only from the provided file content and conversation context.",
+            },
+            ...priorMessages,
+            {
+              role: "user",
+              content: [
+                "Saved transcript markdown file:",
+                "```markdown",
+                markdown,
+                "```",
+                "",
+                `User request: ${userPrompt}`,
+              ].join("\n"),
+            },
+          ],
+        },
+        { timeout: 15 * 60 * 1000 }
+      );
+
+      const responseText = completion.choices?.[0]?.message?.content?.trim();
+      if (!responseText) {
+        return { ok: false, error: "Model returned no response." };
+      }
+
+      return { ok: true, response: responseText };
+    } catch (err) {
+      return {
+        ok: false,
+        error: err?.message || "Post-processing failed.",
+      };
+    }
+  }
+);
