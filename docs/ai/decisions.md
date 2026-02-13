@@ -17,3 +17,6 @@
 
 - 2026-02-11 18:25: Speaker references now passed as top-level transcription params; formatting preserves named labels.  
   Rationale: Ensure diarization uses provided names and retains them in output.
+
+- 2026-02-11 18:35: App UI title changed to "Process Audio".  
+  Rationale: Align product naming in window title and UI header.

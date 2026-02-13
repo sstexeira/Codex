@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Audio Transcriber</title>
+    <title>Process Audio</title>
     <style>
       :root {
         color-scheme: light;
@@ -145,6 +145,10 @@
         line-height: 1.5;
       }
 
+      #sourceAudio {
+        width: 100%;
+      }
+
       textarea {
         width: 100%;
         min-height: 220px;
@@ -180,14 +184,62 @@
         gap: 8px;
       }
 
+      .audio-controls {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .skip-btn {
+        background: #e9e9e9;
+        color: #333;
+        width: 36px;
+        height: 36px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+      }
+
+      .skip-btn svg {
+        width: 22px;
+        height: 22px;
+      }
+
       .timecode {
         font-size: 12px;
         color: #666;
       }
+
+      details {
+        border-radius: 10px;
+      }
+
+      .details-summary {
+        list-style: none;
+        cursor: pointer;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 2px 0;
+      }
+
+      .details-summary::before {
+        content: ">";
+        display: inline-block;
+        transform: rotate(0deg);
+        transition: transform 0.15s ease;
+      }
+
+      details[open] .details-summary::before {
+        transform: rotate(90deg);
+      }
     </style>
   </head>
   <body>
-    <h1>Audio Transcriber</h1>
+    <h1>Process Audio</h1>
 
     <div class="card">
       <div class="row">
@@ -205,7 +257,27 @@
 
       <div class="audio-player">
         <audio id="sourceAudio" controls></audio>
-        <div class="timecode" id="timecode">00:00 / 00:00</div>
+        <div class="audio-controls">
+          <button class="skip-btn secondary" id="skipBack" title="Skip back 5s">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M12 5a7 7 0 1 0 6.32 4H21l-3.5-3.5L14 9h2.62A5 5 0 1 1 12 7V5z"
+                fill="currentColor"
+              />
+              <text x="12" y="16" text-anchor="middle" font-size="8" fill="currentColor">5</text>
+            </svg>
+          </button>
+          <button class="skip-btn secondary" id="skipAhead" title="Skip ahead 5s">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M12 5a7 7 0 1 1-6.32 4H3l3.5-3.5L10 9H7.38A5 5 0 1 0 12 7V5z"
+                fill="currentColor"
+              />
+              <text x="12" y="16" text-anchor="middle" font-size="8" fill="currentColor">5</text>
+            </svg>
+          </button>
+          <div class="timecode" id="timecode">00:00 / 00:00</div>
+        </div>
       </div>
 
       <div class="row">
@@ -222,50 +294,56 @@
     </div>
 
     <div class="card">
-      <label>Known Speakers (optional)</label>
-      <div class="note">
-        Seek the audio above to a spot where a speaker is talking, then click
-        “Clip this!” for a slot. Each clip is 4 seconds. Up to 4 speakers.
-      </div>
+      <details id="knownSpeakers">
+        <summary class="details-summary">Identify Known Speakers (optional)</summary>
+        <div class="note">
+          Seek the audio above to a spot where a speaker is talking, then click
+          “Clip this!” for a slot. Each clip is 4 seconds. Up to 4 speakers.
+        </div>
 
-      <div class="speaker-grid">
-        <input class="speaker-name" type="text" placeholder="Speaker name" />
-        <audio class="speaker-audio" controls></audio>
-        <button class="clip-btn" data-slot="1">Clip this!</button>
-        <button class="clear-btn secondary" data-slot="1">Clear</button>
-      </div>
-      <div class="speaker-grid">
-        <input class="speaker-name" type="text" placeholder="Speaker name" />
-        <audio class="speaker-audio" controls></audio>
-        <button class="clip-btn" data-slot="2">Clip this!</button>
-        <button class="clear-btn secondary" data-slot="2">Clear</button>
-      </div>
-      <div class="speaker-grid">
-        <input class="speaker-name" type="text" placeholder="Speaker name" />
-        <audio class="speaker-audio" controls></audio>
-        <button class="clip-btn" data-slot="3">Clip this!</button>
-        <button class="clear-btn secondary" data-slot="3">Clear</button>
-      </div>
-      <div class="speaker-grid">
-        <input class="speaker-name" type="text" placeholder="Speaker name" />
-        <audio class="speaker-audio" controls></audio>
-        <button class="clip-btn" data-slot="4">Clip this!</button>
-        <button class="clear-btn secondary" data-slot="4">Clear</button>
-      </div>
+        <div class="speaker-grid">
+          <input class="speaker-name" type="text" placeholder="Speaker name" />
+          <audio class="speaker-audio" controls></audio>
+          <button class="clip-btn" data-slot="1">Clip this!</button>
+          <button class="clear-btn secondary" data-slot="1">Clear</button>
+        </div>
+        <div class="speaker-grid">
+          <input class="speaker-name" type="text" placeholder="Speaker name" />
+          <audio class="speaker-audio" controls></audio>
+          <button class="clip-btn" data-slot="2">Clip this!</button>
+          <button class="clear-btn secondary" data-slot="2">Clear</button>
+        </div>
+        <div class="speaker-grid">
+          <input class="speaker-name" type="text" placeholder="Speaker name" />
+          <audio class="speaker-audio" controls></audio>
+          <button class="clip-btn" data-slot="3">Clip this!</button>
+          <button class="clear-btn secondary" data-slot="3">Clear</button>
+        </div>
+        <div class="speaker-grid">
+          <input class="speaker-name" type="text" placeholder="Speaker name" />
+          <audio class="speaker-audio" controls></audio>
+          <button class="clip-btn" data-slot="4">Clip this!</button>
+          <button class="clear-btn secondary" data-slot="4">Clear</button>
+        </div>
+      </details>
     </div>
 
     <div id="output">Transcription output will appear here.</div>
 
     <div class="card">
-      <label for="editor">Edit Transcript (Markdown)</label>
-      <textarea id="editor" placeholder="Transcribed Markdown will appear here..."></textarea>
+      <details id="editTranscript">
+        <summary class="details-summary">Edit Transcript</summary>
+        <textarea id="editor" placeholder="Transcribed audio may be edited directly here..."></textarea>
 
-      <div class="find-replace">
-        <input id="findText" type="text" placeholder="Find..." />
-        <input id="replaceText" type="text" placeholder="Replace with..." />
-        <button id="replaceBtn" class="secondary">Replace All</button>
-      </div>
+        <div class="find-replace">
+          <input id="findText" type="text" placeholder="Find..." />
+          <input id="replaceText" type="text" placeholder="Replace with..." />
+          <button id="replaceBtn" class="secondary">Replace All</button>
+        </div>
+      </details>
+    </div>
 
+    <div class="card">
       <div class="row">
         <button id="createFileBtn">Create File</button>
         <div class="note">Creates a .md file with your edits.</div>
@@ -282,6 +360,8 @@
       const progressEl = document.getElementById("progress");
       const sourceAudio = document.getElementById("sourceAudio");
       const timecode = document.getElementById("timecode");
+      const skipBack = document.getElementById("skipBack");
+      const skipAhead = document.getElementById("skipAhead");
       const output = document.getElementById("output");
       const transcribeBtn = document.getElementById("transcribeBtn");
       const openFolderBtn = document.getElementById("openFolderBtn");
@@ -378,6 +458,19 @@
 
       sourceAudio.addEventListener("timeupdate", updateTimecode);
       sourceAudio.addEventListener("loadedmetadata", updateTimecode);
+
+      skipBack.addEventListener("click", () => {
+        if (!Number.isFinite(sourceAudio.duration)) return;
+        sourceAudio.currentTime = Math.max(0, sourceAudio.currentTime - 5);
+      });
+
+      skipAhead.addEventListener("click", () => {
+        if (!Number.isFinite(sourceAudio.duration)) return;
+        sourceAudio.currentTime = Math.min(
+          sourceAudio.duration,
+          sourceAudio.currentTime + 5
+        );
+      });
 
       fileInput.addEventListener("change", () => {
         const file = fileInput.files[0];

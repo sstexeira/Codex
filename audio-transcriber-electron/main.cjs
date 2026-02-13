@@ -20,7 +20,7 @@ const createWindow = () => {
     width: 900,
     height: 700,
     resizable: true,
-    title: "Audio Transcriber",
+    title: "Process Audio",
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,

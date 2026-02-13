@@ -2,7 +2,7 @@
 
 ## Goal / Non-goals
 - Goal: local-first audio transcription tools using OpenAI Audio Transcriptions with diarization, formatted output, and local file outputs.
-- Goal: provide a desktop Electron app that supports audio playback, speaker reference clips, transcription, and editable Markdown output.
+- Goal: provide a desktop Electron app ("Process Audio") that supports audio playback, speaker reference clips, transcription, and editable Markdown output.
 - Non-goal: cloud multi-user service or hosted backend.
 - Non-goal: automatic speaker identification without user-provided reference clips.
 
@@ -52,6 +52,7 @@
   - Electron app with playback, clip creation, diarized transcription, chunking, formatting, and editable Markdown.
   - Reference clips are generated from the main audio via `ffmpeg`.
   - Raw `.txt` and diarized `.json` outputs saved per transcription.
+  - Optional sections (Known Speakers, Edit Transcript) are collapsible; Create File is always visible.
 - Next:
   - Optional: chunk size tuning and UX improvements.
   - Optional: UI surfacing of detected speaker labels for easier validation.
