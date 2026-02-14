@@ -35,3 +35,15 @@
 
 - 2026-02-13: Prompt preset file parsing uses a simple first-semicolon split per line (`Title;Prompt`) with no quoted-field support.  
   Rationale: Keep preset editing lightweight and implementation minimal for current workflow needs.
+
+- 2026-02-14: Increased ffmpeg chunk duration from 5 minutes to 10 minutes (`CHUNK_SECONDS=600`).  
+  Rationale: Reduce number of chunk boundaries and transcription requests for long recordings while preserving timeout protection.
+
+- 2026-02-14: Replaced user-facing "Chunk" labels with "Section" in UI statuses and transcript section headers.  
+  Rationale: Use clearer, consistent language in the UI and post-transcription formatted output.
+
+- 2026-02-14: Updated known-speaker clip UI copy to use "Clip here" and revised cue instructions.  
+  Rationale: Clarify speaker-clip capture workflow and align button/instruction wording.
+
+- 2026-02-14: AI context documentation is maintained in project `docs/` files only (`AGENTS.md`, `PROJECT_CONTEXT.md`, `decisions.md`, `roadmap.md`).  
+  Rationale: Keep context state in a single location and avoid split project memory.

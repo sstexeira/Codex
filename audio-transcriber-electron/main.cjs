@@ -10,7 +10,7 @@ const API_KEY_PATH = path.join(__dirname, "openai_api_key.txt");
 const PROMPTS_CSV_PATH = path.join(__dirname, "Prompts.csv");
 const CLIP_DIR = path.join(app.getPath("temp"), "AudioTranscriberClips");
 const CHUNK_DIR = path.join(app.getPath("temp"), "AudioTranscriberChunks");
-const CHUNK_SECONDS = 300;
+const CHUNK_SECONDS = 600;
 const createdClipPaths = new Set();
 const createdChunkDirs = new Set();
 
@@ -282,8 +282,8 @@ const transcribeChunk = async (
   chunkTotal
 ) => {
   const label = chunkTotal
-    ? `chunk ${chunkIndex} of ${chunkTotal}`
-    : "single chunk";
+    ? `section ${chunkIndex} of ${chunkTotal}`
+    : "single section";
   sendStatus(`Transcribing ${label}...`);
   const start = Date.now();
   const transcription = await client.audio.transcriptions.create(
@@ -320,8 +320,8 @@ const transcribeChunk = async (
 
 const formatChunk = async (client, segments, headerLine, chunkIndex, chunkTotal) => {
   const label = chunkTotal
-    ? `chunk ${chunkIndex} of ${chunkTotal}`
-    : "single chunk";
+    ? `section ${chunkIndex} of ${chunkTotal}`
+    : "single section";
   sendStatus(`Formatting ${label}...`);
   const start = Date.now();
   const formatting = await client.chat.completions.create(
@@ -385,7 +385,7 @@ ipcMain.handle("transcribe", async (_event, { filePath, speakerRefs }) => {
     let diarizedOutput = null;
 
     if (shouldChunk) {
-      sendStatus("Splitting audio into chunks...");
+      sendStatus("Splitting audio into sections...");
       const { dir, files } = await createChunks(filePath);
       const total = files.length;
       try {
@@ -402,7 +402,7 @@ ipcMain.handle("transcribe", async (_event, { filePath, speakerRefs }) => {
             i + 1,
             total
           );
-          const headerLine = `---\n**Chunk ${i + 1} of ${total}**\n`;
+          const headerLine = `---\n**Section ${i + 1} of ${total}**\n`;
           const chunkMarkdown = await formatChunk(
             client,
             segments,
@@ -411,7 +411,7 @@ ipcMain.handle("transcribe", async (_event, { filePath, speakerRefs }) => {
             total
           );
           markdownChunks.push(chunkMarkdown);
-          rawChunks.push(`[Chunk ${i + 1} of ${total}]\n${chunkText}`);
+          rawChunks.push(`[Section ${i + 1} of ${total}]\n${chunkText}`);
           diarizedChunks.push({
             chunk: i + 1,
             total,

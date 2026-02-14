@@ -34,7 +34,7 @@
     1. User selects audio file and optional speaker clips.
     2. App chunks audio if needed.
     3. Each chunk is transcribed with diarization.
-    4. Chunk outputs are formatted into Markdown with chunk separators.
+    4. Chunk outputs are formatted into Markdown with section separators.
     5. Raw text + diarized JSON are saved; user edits Markdown and saves `.md`.
     6. App switches to Post-Processing tab; user chats with model using the saved `.md` as context.
 
@@ -47,7 +47,9 @@
 - Transcription must use diarized model (`gpt-4o-transcribe-diarize`).
 - Audio max size in UI: 25 MB.
 - Long audio must be chunked to avoid request timeouts.
-- Chunk outputs include clear separators: `---` + `**Chunk N of M**`.
+- Current chunk duration is 10 minutes (600 seconds).
+- Chunk outputs include clear separators: `---` + `**Section N of M**`.
+- User-visible partition labels must use "Section" (not "Chunk") in statuses and transcript output.
 - API key is read from `audio-transcriber-electron/openai_api_key.txt` and kept in memory only.
 - Formatting must preserve any speaker labels returned by the diarized API.
 - Speaker reference clips are sent as top-level transcription parameters.
@@ -56,7 +58,7 @@
 - Prompt preset parsing is currently simple line-based parsing with first semicolon split.
 - Current parser does not support quoted CSV escaping for embedded semicolons.
 - Raw outputs saved locally in `~/Documents/AudioTranscriber/`:
-  - `.txt` for raw text (with chunk headers)
+  - `.txt` for raw text (with section headers)
   - `.json` for diarized segments
   - `.md` for final edited transcript
 
@@ -65,6 +67,8 @@
   - Electron app with playback, clip creation, diarized transcription, chunking, formatting, and editable Markdown.
   - Reference clips are generated from the main audio via `ffmpeg`.
   - Raw `.txt` and diarized `.json` outputs saved per transcription.
+  - Known-speaker clip action text is "Clip here" with updated cue instructions.
+  - User-facing section headers now use `Section X of Y` in formatted and raw transcript output.
   - Optional sections (Known Speakers, Edit Transcript) are collapsible.
   - Save and Continue opens a Post-Processing chat tab for AI Q&A over saved transcript Markdown.
   - Post-Processing prompt presets are loaded from `audio-transcriber-electron/Prompts.csv`.
@@ -94,7 +98,8 @@
 - **Diarized JSON**: raw segment output saved as `.json` with speaker labels and timings.
 
 ## Assumptions
-- Both the web app and Electron app are intended to coexist in this repo.
+- This workspace is treated as one project (the Electron app in `audio-transcriber-electron/`).
+- AI context source-of-truth files live under `docs/` for this project.
 - The Electron app is the primary active focus.
 - Users run on macOS and can install `ffmpeg`.
 - Prompt presets are edited directly in `audio-transcriber-electron/Prompts.csv`.
