@@ -1,3 +1,5 @@
 None;
 Summarize this conversation;Summarize this conversation
 Create a bio; This conversation is an interview with a candidate. Based on this conversation, write a concise bio of the candidate’s career history. Do not embellish on the points made in the notes, but do make sure the account is well-written and tells the complete story. It is important that the key points are captured accurately, as noted, without new information added. The output should be a well-structured bio that organizes the key points. Use complete sentences, in conversational format, with no bullet points. Write the bio in two short paragraphs.
+Extract action items;Review this conversation for any key action items resulting from the discussion.  Summarize those action items, grouped by speaker.
+Describe this conversation;Describe this conversation in two or three paragraphs, as if describing it to a third party who was not involved.  Use conversational language, making sure to capture all the key points and the overall intent of the conversation. 

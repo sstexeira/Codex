@@ -349,7 +349,6 @@
         </div>
         <div>
           <input id="fileInput" type="file" accept="audio/*" />
-          <div class="note">Max file size: 25 MB</div>
         </div>
       </div>
 
@@ -469,8 +468,6 @@
     </div>
 
     <script>
-      const MAX_BYTES = 25 * 1024 * 1024;
-
       const fileInput = document.getElementById("fileInput");
       const dropzone = document.getElementById("dropzone");
       const fileInfo = document.getElementById("fileInfo");
@@ -610,14 +607,6 @@
 
       const setFile = (file) => {
         if (!file) return;
-        if (file.size > MAX_BYTES) {
-          setStatus("File too large. Maximum size is 25 MB.", true);
-          fileInfo.textContent = "No file selected.";
-          selectedFilePath = null;
-          sourceAudio.removeAttribute("src");
-          return;
-        }
-
         const filePath = window.appBridge.getPathForFile(file);
         selectedFilePath = filePath;
         fileInfo.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(

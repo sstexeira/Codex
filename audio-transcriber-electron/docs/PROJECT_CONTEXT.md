@@ -45,7 +45,7 @@
 
 ## Key Constraints
 - Transcription must use diarized model (`gpt-4o-transcribe-diarize`).
-- Audio max size in UI: 25 MB.
+- No app-level audio file size limit is enforced before transcription.
 - Long audio must be chunked to avoid request timeouts.
 - Current chunk duration is 10 minutes (600 seconds).
 - Chunk outputs include clear separators: `---` + `**Section N of M**`.
@@ -57,10 +57,14 @@
 - Prompt preset source format is semicolon-separated CSV rows: `Title;Prompt text`.
 - Prompt preset parsing is currently simple line-based parsing with first semicolon split.
 - Current parser does not support quoted CSV escaping for embedded semicolons.
+- Chunking trigger is duration-based (`duration > CHUNK_SECONDS`), not file-size-based.
+- Retryable transcription/formatting API failures (429/5xx/timeouts/network transient errors) are retried with exponential backoff.
+- Retry policy defaults: 4 total attempts with 2s base exponential backoff per retry.
 - Raw outputs saved locally in `~/Documents/AudioTranscriber/`:
   - `.txt` for raw text (with section headers)
   - `.json` for diarized segments
   - `.md` for final edited transcript
+  - `-progress.md` interim markdown snapshots during multi-section processing
 
 ## Current Status
 - Implemented:
@@ -69,6 +73,9 @@
   - Raw `.txt` and diarized `.json` outputs saved per transcription.
   - Known-speaker clip action text is "Clip here" with updated cue instructions.
   - User-facing section headers now use `Section X of Y` in formatted and raw transcript output.
+  - Multi-section runs persist progress after each completed section (`.txt`, `.json`, and `-progress.md`).
+  - Retry wrapper handles retryable API errors before failing a section.
+  - On multi-section failure, previously completed section outputs remain saved on disk for recovery.
   - Optional sections (Known Speakers, Edit Transcript) are collapsible.
   - Save and Continue opens a Post-Processing chat tab for AI Q&A over saved transcript Markdown.
   - Post-Processing prompt presets are loaded from `audio-transcriber-electron/Prompts.csv`.
@@ -104,3 +111,4 @@
 - Users run on macOS and can install `ffmpeg`.
 - Prompt presets are edited directly in `audio-transcriber-electron/Prompts.csv`.
 - `Prompts.csv` uses one prompt per line in `Title;Prompt` form, without header rows.
+- Transient upstream/API errors can still occur; partial output files are treated as expected recovery artifacts.

@@ -47,3 +47,18 @@
 
 - 2026-02-14: AI context documentation is maintained in project `docs/` files only (`AGENTS.md`, `PROJECT_CONTEXT.md`, `decisions.md`, `roadmap.md`).  
   Rationale: Keep context state in a single location and avoid split project memory.
+
+- 2026-02-17: Removed the app-level 25 MB file-size rejection from transcription intake.  
+  Rationale: Allow larger source files through while keeping existing 10-minute duration-based chunking unchanged.
+
+- 2026-02-17: Removed the renderer-side 25 MB validation and UI max-size note from file picker/drag-drop flow.  
+  Rationale: Keep frontend behavior aligned with backend intake rules and avoid false size rejections.
+
+- 2026-02-17: Added retry/backoff for retryable API failures during section transcription and formatting.  
+  Rationale: Mitigate transient upstream/network failures (e.g., 502/5xx/timeout/429) without aborting the full run on first error.
+
+- 2026-02-17: Persist section-by-section progress snapshots during chunked processing.  
+  Rationale: Preserve partial results (`.txt`, `.json`, and `-progress.md`) so long runs retain completed work if a later section fails.
+
+- 2026-02-17: Keep chunk duration at 10 minutes while adding reliability safeguards (retries + incremental saves).  
+  Rationale: Improve resilience for long runs without changing chunk boundaries or existing sectioning behavior.

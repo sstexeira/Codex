@@ -5,12 +5,13 @@ const path = require("path");
 const { spawn } = require("child_process");
 const MarkdownIt = require("markdown-it");
 
-const MAX_BYTES = 25 * 1024 * 1024;
 const API_KEY_PATH = path.join(__dirname, "openai_api_key.txt");
 const PROMPTS_CSV_PATH = path.join(__dirname, "Prompts.csv");
 const CLIP_DIR = path.join(app.getPath("temp"), "AudioTranscriberClips");
 const CHUNK_DIR = path.join(app.getPath("temp"), "AudioTranscriberChunks");
 const CHUNK_SECONDS = 600;
+const API_RETRY_ATTEMPTS = 4;
+const API_RETRY_BASE_DELAY_MS = 2000;
 const createdClipPaths = new Set();
 const createdChunkDirs = new Set();
 
@@ -273,6 +274,65 @@ const logStep = (label, startMs) => {
   console.log(`[transcribe] ${label} (${(elapsedMs / 1000).toFixed(1)}s)`);
 };
 
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const isRetryableApiError = (err) => {
+  const status = Number(err?.status);
+  if (Number.isFinite(status)) {
+    if (status === 408 || status === 409 || status === 425 || status === 429) {
+      return true;
+    }
+    if (status >= 500) {
+      return true;
+    }
+  }
+
+  const code = String(err?.code || "").toUpperCase();
+  if (["ETIMEDOUT", "ECONNRESET", "ENOTFOUND", "EAI_AGAIN"].includes(code)) {
+    return true;
+  }
+
+  const message = String(err?.message || "").toLowerCase();
+  return (
+    message.includes("timed out") ||
+    message.includes("timeout") ||
+    message.includes("bad gateway") ||
+    message.includes("temporarily unavailable")
+  );
+};
+
+const withRetry = async (label, operation) => {
+  let lastError = null;
+  for (let attempt = 1; attempt <= API_RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      return await operation();
+    } catch (err) {
+      lastError = err;
+      const canRetry =
+        attempt < API_RETRY_ATTEMPTS && isRetryableApiError(err);
+      if (!canRetry) {
+        throw err;
+      }
+      const waitMs = API_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
+      console.warn(
+        `[transcribe] ${label} failed (attempt ${attempt}/${API_RETRY_ATTEMPTS}), retrying in ${(
+          waitMs / 1000
+        ).toFixed(1)}s`,
+        {
+          status: err?.status,
+          code: err?.code,
+          message: err?.message,
+        }
+      );
+      sendStatus(
+        `Temporary API error during ${label}. Retrying (${attempt}/${API_RETRY_ATTEMPTS - 1})...`
+      );
+      await delay(waitMs);
+    }
+  }
+  throw lastError;
+};
+
 const transcribeChunk = async (
   client,
   filePath,
@@ -286,20 +346,22 @@ const transcribeChunk = async (
     : "single section";
   sendStatus(`Transcribing ${label}...`);
   const start = Date.now();
-  const transcription = await client.audio.transcriptions.create(
-    {
-      file: fs.createReadStream(filePath),
-      model: "gpt-4o-transcribe-diarize",
-      response_format: "diarized_json",
-      chunking_strategy: "auto",
-      ...(knownNames.length
-        ? {
-            known_speaker_names: knownNames,
-            known_speaker_references: knownRefs,
-          }
-        : {}),
-    },
-    { timeout: 15 * 60 * 1000 }
+  const transcription = await withRetry(`transcription (${label})`, () =>
+    client.audio.transcriptions.create(
+      {
+        file: fs.createReadStream(filePath),
+        model: "gpt-4o-transcribe-diarize",
+        response_format: "diarized_json",
+        chunking_strategy: "auto",
+        ...(knownNames.length
+          ? {
+              known_speaker_names: knownNames,
+              known_speaker_references: knownRefs,
+            }
+          : {}),
+      },
+      { timeout: 15 * 60 * 1000 }
+    )
   );
   logStep(`transcription completed (${label})`, start);
   const rawSegments =
@@ -324,19 +386,21 @@ const formatChunk = async (client, segments, headerLine, chunkIndex, chunkTotal)
     : "single section";
   sendStatus(`Formatting ${label}...`);
   const start = Date.now();
-  const formatting = await client.chat.completions.create(
-    {
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You format transcripts into clean Markdown without changing meaning.",
-        },
-        { role: "user", content: buildPrompt(segments, headerLine) },
-      ],
-    },
-    { timeout: 15 * 60 * 1000 }
+  const formatting = await withRetry(`formatting (${label})`, () =>
+    client.chat.completions.create(
+      {
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You format transcripts into clean Markdown without changing meaning.",
+          },
+          { role: "user", content: buildPrompt(segments, headerLine) },
+        ],
+      },
+      { timeout: 15 * 60 * 1000 }
+    )
   );
   logStep(`formatting completed (${label})`, start);
   const markdown = formatting.choices?.[0]?.message?.content?.trim();
@@ -349,17 +413,13 @@ const formatChunk = async (client, segments, headerLine, chunkIndex, chunkTotal)
 ipcMain.handle("transcribe", async (_event, { filePath, speakerRefs }) => {
   const startedAt = Date.now();
   console.log(`[transcribe] request started at ${new Date().toISOString()}`);
+  let outputDir = null;
+  let rawPath = null;
+  let diarizedPath = null;
+  let progressMarkdownPath = null;
   try {
     if (!filePath) {
       return { ok: false, error: "Please select an audio file." };
-    }
-
-    const stat = await fsp.stat(filePath);
-    if (stat.size > MAX_BYTES) {
-      return {
-        ok: false,
-        error: "File too large. Maximum size is 25 MB.",
-      };
     }
 
     const client = await createOpenAiClient();
@@ -383,6 +443,12 @@ ipcMain.handle("transcribe", async (_event, { filePath, speakerRefs }) => {
     let markdown = "";
     let rawText = "";
     let diarizedOutput = null;
+    outputDir = await getOutputDir();
+    const base = sanitizeBaseName(path.basename(filePath, path.extname(filePath)));
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    rawPath = path.join(outputDir, `${base}-${timestamp}.txt`);
+    diarizedPath = path.join(outputDir, `${base}-${timestamp}.json`);
+    progressMarkdownPath = path.join(outputDir, `${base}-${timestamp}-progress.md`);
 
     if (shouldChunk) {
       sendStatus("Splitting audio into sections...");
@@ -417,6 +483,16 @@ ipcMain.handle("transcribe", async (_event, { filePath, speakerRefs }) => {
             total,
             segments: rawSegments,
           });
+          await Promise.all([
+            fsp.writeFile(rawPath, rawChunks.join("\n\n"), "utf8"),
+            fsp.writeFile(progressMarkdownPath, markdownChunks.join("\n\n"), "utf8"),
+            fsp.writeFile(
+              diarizedPath,
+              JSON.stringify({ chunks: diarizedChunks }, null, 2),
+              "utf8"
+            ),
+          ]);
+          sendStatus(`Saved progress through section ${i + 1} of ${total}.`);
         }
         markdown = markdownChunks.join("\n\n");
         rawText = rawChunks.join("\n\n");
@@ -444,11 +520,6 @@ ipcMain.handle("transcribe", async (_event, { filePath, speakerRefs }) => {
 
     sendStatus("Saving raw transcript...");
     const saveStart = Date.now();
-    const outputDir = await getOutputDir();
-    const base = sanitizeBaseName(path.basename(filePath, path.extname(filePath)));
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const rawPath = path.join(outputDir, `${base}-${timestamp}.txt`);
-    const diarizedPath = path.join(outputDir, `${base}-${timestamp}.json`);
     await fsp.writeFile(rawPath, rawText, "utf8");
     if (diarizedOutput) {
       await fsp.writeFile(
